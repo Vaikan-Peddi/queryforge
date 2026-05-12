@@ -33,9 +33,9 @@ Return JSON exactly in this format:
 def build_schema_text(schema: dict) -> str:
     lines = []
     for table in schema.get("tables", []):
-        columns = ", ".join(f"{c['name']} {c.get('type') or 'TEXT'}" for c in table.get("columns", []))
+        columns = ", ".join(f"{c['name']} {c.get('type') or 'TEXT'}" for c in table.get("columns") or [])
         lines.append(f"- {table['name']}({columns})")
-        for fk in table.get("foreign_keys", []):
+        for fk in table.get("foreign_keys") or []:
             lines.append(f"  FK {table['name']}.{fk['column']} -> {fk['ref_table']}.{fk['ref_column']}")
     return "\n".join(lines)
 

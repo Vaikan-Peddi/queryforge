@@ -61,5 +61,6 @@ def generate(request: GenerateSQLRequest) -> GenerateSQLResponse:
     try:
         result = generate_sql(request.question, request.schema, request.safety_rules)
     except Exception as exc:
+        logger.error("generate-sql failed: %s: %s", type(exc).__name__, exc, exc_info=True)
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     return GenerateSQLResponse(**result)

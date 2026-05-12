@@ -1,8 +1,9 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { fade } from 'svelte/transition';
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
-  import { Bot, ChevronRight, Database, FileUp, Play, RefreshCcw, Table2 } from 'lucide-svelte';
+  import { Bot, ChevronRight, Database, FileUp, Play, RefreshCcw, Table2, Trash2, Zap } from 'lucide-svelte';
   import AppShell from '$lib/components/AppShell.svelte';
   import { api, getSession } from '$lib/api';
   import type { DatabaseSchema, HistoryItem, QueryResult, Workspace } from '$lib/types';
@@ -18,7 +19,39 @@
   let error = '';
   let loading = true;
   let busy = false;
+  let generating = false;
   let fileInput: HTMLInputElement;
+
+  const PHRASES = [
+    'Reading your schema...',
+    'Thinking hard...',
+    'Translating to SQL...',
+    'Picking the right tables...',
+    'Joining the dots...',
+    'Writing the query...',
+    'Checking your columns...',
+    'Pondering foreign keys...',
+    'Making it read-only...',
+    'Polishing the SQL...',
+    'Consulting the oracle...',
+    'Squinting at your question...',
+    'Crafting the perfect SELECT...',
+    'Almost there...',
+  ];
+
+  let phraseIdx = 0;
+  let phraseTimer: ReturnType<typeof setInterval> | null = null;
+
+  function startPhrases() {
+    phraseIdx = Math.floor(Math.random() * PHRASES.length);
+    phraseTimer = setInterval(() => {
+      phraseIdx = (phraseIdx + 1) % PHRASES.length;
+    }, 1800);
+  }
+
+  function stopPhrases() {
+    if (phraseTimer) { clearInterval(phraseTimer); phraseTimer = null; }
+  }
 
   $: workspaceId = $page.params.id;
 
@@ -67,6 +100,8 @@
 
   async function generate() {
     busy = true;
+    generating = true;
+    startPhrases();
     error = '';
     try {
       const generated = await api.generate(workspaceId, question);
@@ -77,6 +112,8 @@
     } catch (err) {
       error = err instanceof Error ? err.message : 'Generation failed';
     } finally {
+      stopPhrases();
+      generating = false;
       busy = false;
     }
   }
@@ -94,6 +131,33 @@
     }
   }
 
+  async function generateAndRun() {
+    busy = true;
+    generating = true;
+    startPhrases();
+    error = '';
+    try {
+      const generated = await api.generate(workspaceId, question);
+      sql = generated.sql;
+      explanation = generated.explanation;
+      confidence = generated.confidence;
+      stopPhrases();
+      generating = false;
+      result = await api.execute(workspaceId, sql);
+      await loadHistory();
+    } catch (err) {
+      error = err instanceof Error ? err.message : 'Generate & run failed';
+    } finally {
+      stopPhrases();
+      generating = false;
+      busy = false;
+    }
+  }
+
+  function clearHistory() {
+    history = [];
+  }
+
   function useHistory(item: HistoryItem) {
     question = item.question || question;
     sql = item.executed_sql || item.generated_sql || sql;
@@ -102,7 +166,7 @@
 </script>
 
 <AppShell>
-  <main class="mx-auto max-w-7xl px-4 py-6">
+  <main class="px-4 py-6">
     {#if loading}
       <div class="rounded-lg border border-line bg-white p-8 text-sm text-slate-500">Loading workspace...</div>
     {:else}
@@ -125,7 +189,7 @@
         </section>
       {:else}
         <div class="grid gap-4 lg:grid-cols-[280px_1fr_300px]">
-          <aside class="rounded-lg border border-line bg-white p-4 shadow-soft">
+          <aside class="max-h-[calc(100vh-10rem)] self-start overflow-y-auto rounded-lg border border-line bg-white p-4 shadow-soft">
             <div class="mb-3 flex items-center justify-between">
               <h2 class="flex items-center gap-2 font-semibold"><Table2 size={17} /> Schema</h2>
               <button class="focus-ring grid h-8 w-8 place-items-center rounded-md border border-line" title="Refresh schema" aria-label="Refresh schema" on:click={loadSchema}><RefreshCcw size={14} /></button>
@@ -147,13 +211,26 @@
             </div>
           </aside>
 
-          <section class="space-y-4">
+          <section class="min-w-0 space-y-4">
             <div class="rounded-lg border border-line bg-white p-4 shadow-soft">
               <label class="text-sm font-semibold" for="question">Ask a question</label>
-              <textarea id="question" class="focus-ring mt-2 h-24 w-full resize-none rounded-md border border-line px-3 py-2 text-sm" bind:value={question}></textarea>
-              <div class="mt-3 flex justify-end">
-                <button class="focus-ring flex items-center gap-2 rounded-md bg-accent px-4 py-2 text-sm font-medium text-white disabled:opacity-60" disabled={busy} on:click={generate}><Bot size={16} /> Generate SQL</button>
-              </div>
+              <textarea id="question" class="focus-ring mt-2 h-24 w-full resize-y rounded-md border border-line px-3 py-2 text-sm disabled:opacity-50" bind:value={question} disabled={generating}></textarea>
+
+              {#if generating}
+                <div class="mt-3 flex min-h-[40px] items-center gap-3 rounded-md border border-accent/20 bg-accent/5 px-4 py-2.5">
+                  <div class="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-accent border-t-transparent"></div>
+                  {#key phraseIdx}
+                    <span class="text-sm font-medium text-accent" in:fade={{ duration: 300 }}>
+                      {PHRASES[phraseIdx]}
+                    </span>
+                  {/key}
+                </div>
+              {:else}
+                <div class="mt-3 flex justify-end gap-2">
+                  <button class="focus-ring flex items-center gap-2 rounded-md border border-line bg-white px-4 py-2 text-sm font-medium disabled:opacity-60" disabled={busy} on:click={generate}><Bot size={16} /> Generate SQL</button>
+                  <button class="focus-ring flex items-center gap-2 rounded-md bg-accent px-4 py-2 text-sm font-medium text-white disabled:opacity-60" disabled={busy} on:click={generateAndRun}><Zap size={16} /> Generate &amp; Run</button>
+                </div>
+              {/if}
             </div>
 
             <div class="rounded-lg border border-line bg-white p-4 shadow-soft">
@@ -169,12 +246,12 @@
             </div>
 
             {#if result}
-              <div class="overflow-hidden rounded-lg border border-line bg-white shadow-soft">
-                <div class="flex items-center justify-between border-b border-line px-4 py-3 text-sm">
+              <div class="rounded-lg border border-line bg-white shadow-soft" style="resize: vertical; overflow: hidden; min-height: 200px; display: flex; flex-direction: column;">
+                <div class="flex shrink-0 items-center justify-between border-b border-line px-4 py-3 text-sm">
                   <strong>Results</strong>
                   <span class="text-slate-500">{result.row_count} rows · {result.execution_ms} ms</span>
                 </div>
-                <div class="max-h-[460px] overflow-auto">
+                <div class="min-h-0 flex-1 overflow-auto">
                   <table class="min-w-full text-left text-sm">
                     <thead class="sticky top-0 bg-panel">
                       <tr>{#each result.columns as column}<th class="border-b border-line px-3 py-2 font-semibold">{column}</th>{/each}</tr>
@@ -190,8 +267,13 @@
             {/if}
           </section>
 
-          <aside class="rounded-lg border border-line bg-white p-4 shadow-soft">
-            <h2 class="mb-3 font-semibold">History</h2>
+          <aside class="max-h-[calc(100vh-10rem)] self-start overflow-y-auto rounded-lg border border-line bg-white p-4 shadow-soft">
+            <div class="mb-3 flex items-center justify-between">
+              <h2 class="font-semibold">History</h2>
+              {#if history.length > 0}
+                <button class="focus-ring grid h-8 w-8 place-items-center rounded-md border border-line text-slate-500 hover:text-red-600" title="Clear history" aria-label="Clear history" on:click={clearHistory}><Trash2 size={14} /></button>
+              {/if}
+            </div>
             <div class="space-y-2">
               {#each history as item}
                 <button class="focus-ring w-full rounded-md border border-line p-3 text-left text-sm hover:bg-panel" on:click={() => useHistory(item)}>
