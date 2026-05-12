@@ -1,0 +1,17 @@
+<svg width="128" height="128" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">QueryForge logo</title>
+  <desc id="desc">A simple teal database cylinder in front of an AI sparkle.</desc>
+  <defs>
+    <linearGradient id="database" x1="30" y1="34" x2="94" y2="98" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#5EEAD4"/>
+      <stop offset="1" stop-color="#0F766E"/>
+    </linearGradient>
+  </defs>
+  <rect width="128" height="128" rx="28" fill="#0F172A"/>
+  <path d="M33 48C33 37.5066 46.8792 29 64 29C81.1208 29 95 37.5066 95 48V82C95 92.4934 81.1208 101 64 101C46.8792 101 33 92.4934 33 82V48Z" fill="url(#database)"/>
+  <path d="M95 48C95 58.4934 81.1208 67 64 67C46.8792 67 33 58.4934 33 48C33 37.5066 46.8792 29 64 29C81.1208 29 95 37.5066 95 48Z" fill="#99F6E4"/>
+  <path d="M94 66C94 75.3888 80.5685 83 64 83C47.4315 83 34 75.3888 34 66" stroke="#CCFBF1" stroke-width="5" stroke-linecap="round"/>
+  <path d="M49 51L58 58L49 65" stroke="#0F172A" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M65 67H80" stroke="#0F172A" stroke-width="6" stroke-linecap="round"/>
+  <path d="M88 22L94 43L115 49L94 55L88 76L82 55L61 49L82 43L88 22Z" fill="#A78BFA" opacity="0.72"/>
+</svg>

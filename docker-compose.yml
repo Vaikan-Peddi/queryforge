@@ -1,0 +1,102 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-queryforge}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-queryforge}
+      POSTGRES_DB: ${POSTGRES_DB:-queryforge}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-queryforge} -d ${POSTGRES_DB:-queryforge}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+
+  ai-service:
+    build:
+      context: ./ai-service
+    environment:
+      LLM_PROVIDER: ${LLM_PROVIDER:-ollama}
+      LLM_BASE_URL: ${LLM_BASE_URL:-http://ollama:11434}
+      LLM_MODEL: ${LLM_MODEL:-qwen2.5-coder:7b}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_TIMEOUT_SECONDS: ${LLM_TIMEOUT_SECONDS:-120}
+      LLM_TEMPERATURE: ${LLM_TEMPERATURE:-0.1}
+      ENABLE_MOCK_LLM: ${ENABLE_MOCK_LLM:-false}
+    ports:
+      - "8000:8000"
+    depends_on:
+      ollama:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2)"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: ${POSTGRES_USER:-queryforge}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-queryforge}
+      POSTGRES_DB: ${POSTGRES_DB:-queryforge}
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-change-me-access-secret}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-change-me-refresh-secret}
+      BACKEND_PORT: 8080
+      FRONTEND_ORIGIN: http://localhost:${FRONTEND_PORT:-5173}
+      AI_SERVICE_URL: http://ai-service:8000
+      AI_REQUEST_TIMEOUT_SECONDS: ${AI_REQUEST_TIMEOUT_SECONDS:-130}
+      STORAGE_DIR: /app/storage
+      MAX_UPLOAD_MB: 50
+    ports:
+      - "${BACKEND_PORT:-8080}:8080"
+    volumes:
+      - backend-storage:/app/storage
+    depends_on:
+      postgres:
+        condition: service_healthy
+      ai-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "/app/queryforge-api", "--healthcheck"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_URL: http://localhost:${BACKEND_PORT:-8080}
+    environment:
+      PORT: 5173
+      ORIGIN: http://localhost:${FRONTEND_PORT:-5173}
+      VITE_API_URL: http://localhost:${BACKEND_PORT:-8080}
+    ports:
+      - "${FRONTEND_PORT:-5173}:5173"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  postgres-data:
+  backend-storage:
+  ollama_data:

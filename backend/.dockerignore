@@ -1,0 +1,7 @@
+.gocache
+.gomodcache
+storage
+tmp
+*.sqlite
+*.sqlite3
+*.db
